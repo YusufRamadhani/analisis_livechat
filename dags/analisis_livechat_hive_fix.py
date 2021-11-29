@@ -7,7 +7,7 @@ import nltk
 import json
 
 # Connection property
-host_name = "192.168.169.13"
+host_name = "hive-dwh"
 port = 10000
 user = "hive"
 password = "admin"
@@ -25,7 +25,8 @@ conn = hive.Connection(host=host_name, port=port, username=user, password=passwo
 # function ambil data ke table livechatmessages
 def fetch_livechatmessages(start, stop):
     # query edit manual tenggat waktu pengambilan data
-    query = "SELECT `id`, `loglivechatid`, `text`, `user_type`, `date` FROM `livechatmessages` WHERE DATE(`date`) BETWEEN DATE('" + start + "') AND DATE('" + stop + "')"
+    query = "SELECT `id`, `loglivechatid`, `text`, `user_type`, `date` FROM `livechatmessages` WHERE DATE(`date`) BETWEEN DATE('" + \
+        start + "') AND DATE('" + stop + "')"
     result = pd.read_sql_query(query, conn).values.tolist()
 
     return result
@@ -43,25 +44,24 @@ data = fetch_livechatmessages(start, stop)
 listwords = fetch_importantword()
 
 
-
-
 ##################################################################################################
-### Proses Stemming Data
-words = [[] for _ in range(len(data))]  # chat # membuat banyak [n] sebanyak len(data)
+# Proses Stemming Data
+# chat # membuat banyak [n] sebanyak len(data)
+words = [[] for _ in range(len(data))]
 chat_id = [[] for _ in range(len(words))]  # id-chat
 factory = StemmerFactory()
 stemmer = factory.create_stemmer()
 
 for index in range(len(data)):
     try:
-        words[index] = str(re.findall(r"\b[a-zA-Z]{1}\w+", str(data[index][2])))
+        words[index] = str(re.findall(
+            r"\b[a-zA-Z]{1}\w+", str(data[index][2])))
         words[index] = stemmer.stem(words[index])
         words[index] = words[index].split()
         chat_id[index].append(data[index][1])
         chat_id[index].append(words[index])
     except:
         pass  # passing setiap teks yang berisi karakter diluar ascii
-
 
 
 ##################################################################################################
@@ -112,11 +112,8 @@ for i in range(len(data)):
         bigram[i].append(data[i][4])
 
 
-
-
-
 ##################################################################################################
-### Mengubah data bigram ke bentuk dataframe
+# Mengubah data bigram ke bentuk dataframe
 
 df = pd.DataFrame(bigram)
 df.columns = ['id', 'loglivechatid', 'tipe', 'percakapan', 'date']
@@ -124,11 +121,12 @@ df = df[df.astype(str)['percakapan'] != '[]']
 df['percakapan'] = df['percakapan'].apply(json.dumps)
 df['percakapan_modify'] = ""
 
-### Proses Sinonim
+# Proses Sinonim
 
 new_data = df.values.tolist()
 
-list_main = pd.read_sql_query("SELECT * FROM important_word WHERE main_word IS NOT NULL", conn).values.tolist()
+list_main = pd.read_sql_query(
+    "SELECT * FROM important_word WHERE main_word IS NOT NULL", conn).values.tolist()
 
 p_modify = []
 for i in range(len(new_data)):
@@ -152,14 +150,11 @@ for i in range(len(new_data)):
     new_data[i][5] = str(p_modify[i])
 
 
-
-
-
 ##################################################################################################
 def update():
-    ### check hasil update
-    if new_data :
-        ## bikin temp table versi hive
+    # check hasil update
+    if new_data:
+        # bikin temp table versi hive
 
         query = "CREATE TABLE IF NOT EXISTS livechat.temp_table (id BIGINT, loglivechatid STRING, tipe STRING, percakapan STRING, `date` TIMESTAMP, percakapan_modify STRING) " \
                 "ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' STORED AS ORC"
@@ -176,7 +171,7 @@ def update():
         cur = conn.cursor()
         cur.execute(query_insert)
 
-        ### UPDATE AND INSERT
+        # UPDATE AND INSERT
 
         query_merge = "MERGE into bigram_livechat trg " \
                       "USING temp_table src " \
@@ -193,7 +188,7 @@ def update():
         cur = conn.cursor()
         cur.execute(query)
 
-    else :
+    else:
         print("Tidak Ada Data baru yang ditemukan")
 
 
